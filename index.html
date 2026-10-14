@@ -1,0 +1,1178 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>বাংলা মনোপলি (মাল্টিপ্লেয়ার)</title>
+    <style>
+        :root {
+            --board-bg: #2e7d32;
+            --cell-bg: #fff9c4;
+            --accent-color: #e53935;
+            --border-color: #5d4037;
+            --player1-color: #ff4136;
+            --player2-color: #0074d9;
+            --player3-color: #2ecc40;
+            --player4-color: #ffdc00;
+            --ui-bg: #2e2e2e;
+            --ui-border-color: #ff4136;
+            --ui-text-color: #ffffff;
+            --board-text-color: #ff6b6b;
+            --success-color: #4caf50;
+            --warning-color: #ff9800;
+            --info-color: #2196f3;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Arial', sans-serif; }
+        html, body { height: 100%; overflow: hidden; background-color: var(--ui-bg); color: var(--ui-text-color); }
+        body { display: flex; justify-content: center; align-items: center; }
+
+        #app-container {
+            display: flex; flex-direction: column; width: 100%; height: 100%; max-width: 520px;
+            margin: 0 auto; padding: 4px; gap: 4px;
+        }
+
+        .ui-box { border: 1.5px solid var(--ui-border-color); border-radius: 6px; padding: 5px; text-align: center; background-color: #3d3d3d; }
+        .ui-box h3 { margin-bottom: 3px; font-size: 11px; color: #ffeb3b; }
+        .ui-row { display: flex; gap: 4px; }
+        .ui-row .ui-box { flex: 1; }
+
+        .player-info-container { display: flex; flex-direction: column; gap: 2px; max-height: 58px; overflow-y: auto; }
+        .player-info { border: 1px solid #666; background-color: #505050; padding: 2px 4px; border-radius: 4px; font-size: 10.5px; color: white; transition: all 0.2s; }
+        .player-info.active { box-shadow: 0 0 7px #ffeb3b; border-color: #ffeb3b; background-color: #573a3a; }
+        .player-info.bankrupt { opacity: 0.35; text-decoration: line-through; }
+        .player-info h3 { display: flex; align-items: center; gap: 4px; font-size: 10.5px; margin-bottom: 0; color: #fff; }
+        .player-indicator { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+
+        #game-board-container { flex-grow: 1; display: flex; justify-content: center; align-items: center; padding: 1px; overflow: hidden; }
+        #board {
+            display: grid; grid-template-columns: 1.5fr repeat(9, 1fr) 1.5fr; grid-template-rows: 1.5fr repeat(9, 1fr) 1.5fr;
+            gap: 1px; background-color: var(--board-bg); border: 2px solid var(--border-color);
+            position: relative; width: 98vmin; height: 98vmin; max-width: 440px; max-height: 440px;
+        }
+
+        .cell {
+            background: linear-gradient(135deg, var(--cell-bg) 0%, #ffffff 100%);
+            border: 1px solid var(--border-color); position: relative;
+            display: flex; flex-direction: column; justify-content: space-around;
+            align-items: center; padding: 1px; font-size: clamp(6px, 1.4vmin, 9.5px);
+            text-align: center; overflow: hidden; cursor: pointer; color: black;
+        }
+        .cell .header { width: 100%; height: 14%; border-bottom: 1px solid var(--border-color); background-color: #ccc; }
+        .cell .name { font-weight: bold; line-height: 1.1; }
+        .cell .price { font-size: clamp(6px, 1.3vmin, 9px); font-weight: bold; color: #1b5e20; }
+        .corner { font-weight: bold; justify-content: center; background: linear-gradient(45deg, var(--accent-color), #ff6b6b); color: white; }
+        .special-icon { font-size: clamp(11px, 3.2vmin, 18px); }
+
+        #cell-0 { grid-area: 11 / 11 / 12 / 12; }
+        #cell-10 { grid-area: 11 / 1 / 12 / 2; }
+        #cell-20 { grid-area: 1 / 1 / 2 / 2; }
+        #cell-30 { grid-area: 1 / 11 / 2 / 12; }
+
+        .player-token {
+            position: absolute; width: clamp(8px, 2.2vmin, 13px); height: clamp(8px, 2.2vmin, 13px);
+            border-radius: 50%; border: 1.5px solid white; box-shadow: 0 0 5px rgba(0,0,0,0.9);
+            transition: top 0.18s ease, left 0.18s ease; z-index: 5; pointer-events: none;
+        }
+
+        #center-console {
+            grid-column: 2 / 11; grid-row: 2 / 11; background-color: rgba(35, 35, 35, 0.95);
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            padding: 4px; text-align: center;
+        }
+        #center-console h1 { color: var(--board-text-color); font-size: clamp(16px, 4.5vmin, 23px); }
+        #dice-container { display: flex; gap: 8px; margin-top: 4px; }
+        .dice {
+            width: clamp(24px, 6.5vmin, 34px); height: clamp(24px, 6.5vmin, 34px);
+            border: 1px solid var(--border-color); border-radius: 4px; background-color: white;
+            color: black; font-size: clamp(13px, 3.8vmin, 18px); display: flex;
+            justify-content: center; align-items: center; font-weight: bold;
+        }
+        .rolling { animation: roll 0.35s linear infinite; }
+        @keyframes roll { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        .deeds-list { display: flex; flex-wrap: wrap; gap: 3px; padding: 3px; background-color: #4a4a4a; min-height: 48px; height: 48px; overflow-y: auto; border-radius: 4px; }
+        .deed-card { border: 1px solid #888; border-radius: 3px; padding: 2px 4px; background-color: white; color: black; display: flex; align-items: center; gap: 3px; cursor: pointer; }
+        .deed-info { display: flex; flex-direction: column; align-items: flex-start; font-size: 8.5px; }
+
+        .btn { padding: 6px 12px; font-size: 12px; cursor: pointer; border: none; border-radius: 18px; background: linear-gradient(to bottom, var(--success-color), #388e3c); color: white; font-weight: bold; margin: 2px; }
+        .btn:disabled { background: linear-gradient(to bottom, #888, #666); cursor: not-allowed; }
+        .btn-secondary { background: linear-gradient(to bottom, #f44336, #d32f2f); }
+        .btn-warning { background: linear-gradient(to bottom, #ff9800, #f57c00); }
+
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.8); display: flex; justify-content: center; align-items: center; z-index: 100; }
+        .modal { background: #ffffff; padding: 18px; border-radius: 10px; width: 90%; max-width: 380px; text-align: center; color: black; border: 3px solid var(--accent-color); max-height: 90vh; overflow-y: auto; }
+        .modal h2 { background: linear-gradient(45deg, var(--accent-color), #ff6b6b); color: white; padding: 8px; margin: -18px -18px 12px -18px; border-radius: 7px 7px 0 0; font-size: 17px; }
+        .modal input { padding: 8px; margin: 6px 0; width: 95%; border: 1px solid #ccc; border-radius: 5px; font-size: 14px; }
+        .room-code-badge { font-size: 26px; font-weight: bold; color: var(--accent-color); letter-spacing: 3px; background: #ffebee; padding: 6px; border-radius: 6px; border: 2px dashed var(--accent-color); margin: 8px 0; }
+        .player-lobby-list { text-align: left; background: #f5f5f5; padding: 6px; border-radius: 5px; margin: 10px 0; max-height: 120px; overflow-y: auto; }
+        .player-lobby-item { display: flex; align-items: center; gap: 6px; padding: 4px 0; border-bottom: 1px solid #ddd; font-weight: bold; font-size: 13px; }
+
+        .ownership-indicator { position: absolute; top: 15%; left: 0; width: 100%; height: 5%; }
+        .house-indicator { position: absolute; top: 1px; display: flex; gap: 1px; }
+        .house { width: 5px; height: 5px; background-color: #2e7d32; border: 1px solid darkgreen; border-radius: 1px; }
+
+        #transaction-banner {
+            position: fixed; top: 8px; left: 50%; transform: translateX(-50%);
+            background: linear-gradient(135deg, #ffd700, #ffb300); color: #000;
+            padding: 6px 14px; border-radius: 20px; font-size: 12px; font-weight: bold;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.5); border: 1.5px solid #fff; z-index: 999;
+            display: none; text-align: center; max-width: 90%;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="transaction-banner"></div>
+
+    <div id="app-container" style="display: none;">
+        <!-- Top Bar: Opponents -->
+        <div class="ui-row">
+            <div class="ui-box">
+                <h3>অন্যান্য খেলোয়াড়বৃন্দ</h3>
+                <div id="player2-info-container" class="player-info-container"></div>
+            </div>
+            <div class="ui-box">
+                <h3>বিপক্ষের দলিলসমূহ</h3>
+                <div id="player2-deeds-list" class="deeds-list"></div>
+            </div>
+        </div>
+
+        <!-- Board -->
+        <div id="game-board-container" class="ui-box">
+            <div id="board">
+                <div id="center-console">
+                    <h1>বাংলা মনোপলি</h1>
+                    <div id="dice-container">
+                        <div id="dice1" class="dice">?</div>
+                        <div id="dice2" class="dice">?</div>
+                    </div>
+                    <h4 style="color: white; margin-top: 5px; font-size: 12px;">চাল: <span id="current-player-name-center" style="color:#ffeb3b;"></span></h4>
+                    <div id="game-status" style="color: white; margin-top: 3px; font-size: 10.5px;">
+                        <span id="player-cash"></span> | <span id="player-properties"></span>
+                    </div>
+                    <div style="font-size: 10px; color: #a5d6a7; margin-top: 3px;" id="network-status"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Bottom Bar: User -->
+        <div class="ui-row">
+            <div class="ui-box">
+                <h3>আপনার প্রোফাইল</h3>
+                <div id="player1-info-container" class="player-info-container"></div>
+            </div>
+            <div class="ui-box">
+                <h3>আপনার দলিল</h3>
+                <div id="player1-deeds-list" class="deeds-list"></div>
+            </div>
+            <div class="ui-box" style="flex: 0.8;">
+                <h3>চাল দিন</h3>
+                <button id="roll-dice-btn" class="btn" disabled>রোল করুন</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Setup Modal -->
+    <div id="setup-modal" class="modal-overlay">
+        <div class="modal">
+            <h2>অনলাইন বাংলা মনোপলি</h2>
+            <input type="text" id="my-name-input" placeholder="আপনার নাম লিখুন">
+            <div style="margin: 10px 0;">
+                <button id="create-room-btn" class="btn">নতুন রুম খুলুন</button>
+            </div>
+            <hr style="margin: 10px 0;">
+            <div>
+                <input type="text" id="join-room-input" placeholder="৪ সংখ্যার রুম কোড">
+                <button id="join-room-btn" class="btn btn-warning">রুমে যোগ দিন</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Lobby Modal -->
+    <div id="lobby-modal" class="modal-overlay" style="display: none;">
+        <div class="modal">
+            <h2>গেম লবি (অপেক্ষার রুম)</h2>
+            <p style="font-size: 13px;">বন্ধুদের এই কোডটি দিয়ে জয়েন করতে বলুন:</p>
+            <div class="room-code-badge" id="lobby-room-code">----</div>
+            <div class="player-lobby-list" id="lobby-players-list"></div>
+            <div id="host-controls" style="display: none;">
+                <button id="start-game-btn" class="btn" disabled>খেলা শুরু করুন</button>
+            </div>
+            <div id="guest-waiting-msg" style="display: none;">
+                <p style="color: #ff9800; font-weight: bold; margin-top: 6px; font-size: 13px;">হোস্ট খেলা শুরু করার জন্য অপেক্ষা করুন...</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Debt / Liquidation Modal -->
+    <div id="liquidation-modal" class="modal-overlay" style="display: none;">
+        <div class="modal" style="border-color: red;">
+            <h2 style="background: red;">জরুরি ঋণ পরিশোধ!</h2>
+            <p id="debt-reason-text" style="font-weight: bold; color: red; font-size: 13px;"></p>
+            <p style="margin: 6px 0;">আপনার ঘাটতি: <b id="debt-balance-text" style="color: red; font-size: 16px;"></b></p>
+            <p style="font-size: 11px; color: #555;">ঋণ শোধ করতে ব্যাংকে সম্পত্তি বিক্রি করুন:</p>
+            <div id="debt-assets-list" style="max-height: 140px; overflow-y: auto; margin: 8px 0; text-align: left; background: #eee; padding: 6px; border-radius: 5px;"></div>
+            <button id="declare-bankruptcy-btn" class="btn btn-secondary" style="display: none;">দেউলিয়া ঘোষণা করুন</button>
+        </div>
+    </div>
+
+    <!-- Winner Modal -->
+    <div id="winner-modal" class="modal-overlay" style="display: none;">
+        <div class="modal" style="border-color: #ffd700;">
+            <h2 style="background: #ffd700; color: #000;">🏆 খেলা সমাপ্ত! 🏆</h2>
+            <p id="winner-text" style="font-size: 16px; font-weight: bold; margin: 15px 0;"></p>
+            <button id="leave-game-btn" class="btn">নতুন গেম খেলুন</button>
+        </div>
+    </div>
+
+    <div id="property-modal" class="modal-overlay" style="display: none;"></div>
+    <div id="card-modal" class="modal-overlay" style="display: none;"></div>
+    <div id="jail-modal" class="modal-overlay" style="display: none;"></div>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const config = {
+            startingMoney: 2500,
+            goSalary: 200,
+            jailPosition: 10,
+            jailFine: 100,
+            playerColors: ['#ff4136', '#0074d9', '#2ecc40', '#ffdc00'],
+            board: [
+                { name: "শুরু", type: "go" },
+                { name: "ধানমন্ডি", type: "property", price: 100, houseCost: 50 },
+                { name: "কমিউনিটি চেষ্ট", type: "community_chest" },
+                { name: "গুলশান", type: "property", price: 120, houseCost: 50 },
+                { name: "ইনকাম ট্যাক্স", type: "tax", amount: 150 },
+                { name: "বিমানবন্দর", type: "property", price: 200, houseCost: 100 },
+                { name: "বনানী", type: "property", price: 150, houseCost: 80 },
+                { name: "চান্স", type: "chance" },
+                { name: "বারিধারা", type: "property", price: 150, houseCost: 80 },
+                { name: "উত্তরা", type: "property", price: 180, houseCost: 80 },
+                { name: "জেল", type: "jail" },
+                { name: "মিরপুর", type: "property", price: 200, houseCost: 100 },
+                { name: "বিদ্যুৎ অফিস", type: "property", price: 160, houseCost: 80 },
+                { name: "পল্টন", type: "property", price: 200, houseCost: 100 },
+                { name: "মতিঝিল", type: "property", price: 240, houseCost: 100 },
+                { name: "নৌবন্দর", type: "property", price: 200, houseCost: 100 },
+                { name: "শাহবাগ", type: "property", price: 260, houseCost: 120 },
+                { name: "কমিউনিটি চেষ্ট", type: "community_chest" },
+                { name: "ফার্মগেট", type: "property", price: 260, houseCost: 120 },
+                { name: "কারওয়ান বাজার", type: "property", price: 280, houseCost: 120 },
+                { name: "ফ্রি পার্কিং", type: "free_parking" },
+                { name: "লালবাগ", type: "property", price: 300, houseCost: 150 },
+                { name: "চান্স", type: "chance" },
+                { name: "চকবাজার", type: "property", price: 300, houseCost: 150 },
+                { name: "সদরঘাট", type: "property", price: 320, houseCost: 150 },
+                { name: "রেল স্টেশন", type: "property", price: 200, houseCost: 100 },
+                { name: "শ্যামলী", type: "property", price: 350, houseCost: 180 },
+                { name: "কল্যাণপুর", type: "property", price: 350, houseCost: 180 },
+                { name: "ওয়াসা", type: "property", price: 160, houseCost: 80 },
+                { name: "গাবতলী", type: "property", price: 380, houseCost: 180 },
+                { name: "জেলে যান", type: "go_to_jail" },
+                { name: "বসুন্ধরা", type: "property", price: 400, houseCost: 200 },
+                { name: "নিকুঞ্জ", type: "property", price: 400, houseCost: 200 },
+                { name: "কমিউনিটি চেষ্ট", type: "community_chest" },
+                { name: "পূর্বাচল", type: "property", price: 450, houseCost: 200 },
+                { name: "বাস টার্মিনাল", type: "property", price: 200, houseCost: 100 },
+                { name: "চান্স", type: "chance" },
+                { name: "কক্সবাজার", type: "property", price: 500, houseCost: 250 },
+                { name: "বিলাস কর", type: "tax", amount: 200 },
+                { name: "সেন্ট মার্টিন", type: "property", price: 550, houseCost: 250 },
+            ],
+            chanceCards: [
+                { text: "লটারিতে পুরস্কার পেয়েছেন! ৳১৫০ পেলেন।", action: 'add_money', amount: 150 },
+                { text: "সরাসরি 'শুরু'-তে যান। বেতন পাবেন ৳২০০।", action: 'go_to', position: 0 },
+                { text: "সরাসরি জেলে যান!", action: 'go_to_jail' },
+                { text: "হাসপাতালের বিল বাবদ ৳১০০ দিন।", action: 'remove_money', amount: 100 },
+            ],
+            communityChestCards: [
+                { text: "ইনকাম ট্যাক্স ফেরত পেয়েছেন ৳১০০!", action: 'add_money', amount: 100 },
+                { text: "ডাক্তারের ফি বাবদ ৳৮০ পরিশোধ করুন।", action: 'remove_money', amount: 80 },
+                { text: "ব্যাংক লভ্যাংশ পেয়েছেন ৳১২০!", action: 'add_money', amount: 120 },
+                { text: "সরাসরি জেলে যান!", action: 'go_to_jail' }
+            ]
+        };
+
+        let currentRoomId = null;
+        let myPlayerIndex = null;
+        let gameState = null;
+        let syncInterval = null;
+        let isHost = false;
+        let localLastRollId = null;
+        let localLastTxId = null;
+        let isLocallyAnimating = false;
+
+        const appContainer = document.getElementById('app-container');
+        const setupModal = document.getElementById('setup-modal');
+        const lobbyModal = document.getElementById('lobby-modal');
+        const winnerModal = document.getElementById('winner-modal');
+        const rollDiceBtn = document.getElementById('roll-dice-btn');
+        const boardEl = document.getElementById('board');
+        const txBanner = document.getElementById('transaction-banner');
+
+        // =================== সেশন সেভ ও রিস্টোর লজিক ===================
+        function saveSession(roomId, playerIndex) {
+            localStorage.setItem('monopoly_session', JSON.stringify({ roomId, playerIndex }));
+        }
+
+        function clearSession() {
+            localStorage.removeItem('monopoly_session');
+        }
+
+        async function restoreSessionIfExists() {
+            const saved = localStorage.getItem('monopoly_session');
+            if (!saved) return;
+
+            try {
+                const session = JSON.parse(saved);
+                const res = await fetch(`api.php?action=get&room=${session.roomId}`);
+                const state = await res.json();
+
+                if (state && state.players && state.players[session.playerIndex]) {
+                    currentRoomId = session.roomId;
+                    myPlayerIndex = session.playerIndex;
+                    isHost = (myPlayerIndex === 0);
+                    gameState = state;
+
+                    setupModal.style.display = 'none';
+                    if (gameState.gameStarted) {
+                        launchBoard();
+                    } else {
+                        openLobbyScreen(session.roomId);
+                    }
+                    if (!syncInterval) syncInterval = setInterval(fetchRemoteState, 1000);
+                } else {
+                    clearSession();
+                }
+            } catch (err) {
+                clearSession();
+            }
+        }
+
+        // পেজ লোড হলে পুরনো সেশন খোঁজা
+        restoreSessionIfExists();
+
+        // ব্যাক বাটন এবং রিফ্রেশ প্রটেকশন
+        history.pushState(null, null, location.href);
+        window.addEventListener('popstate', () => {
+            history.pushState(null, null, location.href);
+            if (gameState && gameState.gameStarted) {
+                alert("সতর্কতা: গেম চলাকালীন ব্যাক বাটন চাপবেন না।");
+            }
+        });
+
+        window.addEventListener('beforeunload', (e) => {
+            if (gameState && gameState.gameStarted) {
+                e.preventDefault();
+                e.returnValue = '';
+            }
+        });
+
+        // স্ক্রিন রিসাইজ হলে ঘুঁটি সঠিক জায়গায় পুনঃস্থাপন
+        window.addEventListener('resize', () => {
+            if (appContainer.style.display !== 'none') {
+                renderPlayerTokens();
+            }
+        });
+
+        // ভাড়া গণনা
+        function calculateRent(cell, propState) {
+            const houses = propState ? (propState.houses || 0) : 0;
+            const total = cell.price + (houses * (cell.houseCost || 0));
+            return Math.round(total * 0.20);
+        }
+
+        function broadcastTransaction(text) {
+            if (!gameState) return;
+            gameState.lastTransaction = { id: Date.now(), text: text };
+            showTransactionPopup(text);
+        }
+
+        function showTransactionPopup(text) {
+            txBanner.textContent = `💸 ${text}`;
+            txBanner.style.display = 'block';
+            setTimeout(() => { txBanner.style.display = 'none'; }, 4000);
+        }
+
+        // =================== রুম তৈরি ও জয়েন ===================
+        document.getElementById('create-room-btn').addEventListener('click', async () => {
+            const name = document.getElementById('my-name-input').value.trim() || 'হোস্ট';
+            const roomId = Math.floor(1000 + Math.random() * 9000).toString();
+
+            const initialGameState = {
+                roomId: roomId,
+                version: 1,
+                gameStarted: false,
+                currentPlayerIndex: 0,
+                dice: [1, 1],
+                isTurnInProgress: false,
+                lastRoll: null,
+                lastTransaction: null,
+                players: [
+                    { id: 0, name: name, money: config.startingMoney, position: 0, properties: [], inJail: false, jailTurns: 0, bankrupt: false }
+                ]
+            };
+
+            const res = await fetch(`api.php?action=create&room=${roomId}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(initialGameState)
+            });
+            const data = await res.json();
+            if (data.success) {
+                currentRoomId = roomId;
+                myPlayerIndex = 0;
+                isHost = true;
+                gameState = initialGameState;
+                saveSession(roomId, 0);
+                openLobbyScreen(roomId);
+            } else {
+                alert(data.error || 'রুম তৈরি করা যায়নি');
+            }
+        });
+
+        document.getElementById('join-room-btn').addEventListener('click', async () => {
+            const name = document.getElementById('my-name-input').value.trim() || 'খেলোয়াড়';
+            const roomId = document.getElementById('join-room-input').value.trim();
+            if (!roomId) return alert('রুম কোড দিন!');
+
+            const res = await fetch(`api.php?action=join&room=${roomId}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name })
+            });
+            const data = await res.json();
+            if (!data.success) return alert(data.error);
+
+            currentRoomId = roomId;
+            myPlayerIndex = data.playerIndex;
+            isHost = false;
+            gameState = data.state;
+            saveSession(roomId, myPlayerIndex);
+            openLobbyScreen(roomId);
+        });
+
+        function openLobbyScreen(roomId) {
+            setupModal.style.display = 'none';
+            lobbyModal.style.display = 'flex';
+            document.getElementById('lobby-room-code').textContent = roomId;
+
+            document.getElementById('host-controls').style.display = isHost ? 'block' : 'none';
+            document.getElementById('guest-waiting-msg').style.display = isHost ? 'none' : 'block';
+
+            renderLobbyPlayers();
+            if (!syncInterval) syncInterval = setInterval(fetchRemoteState, 1000);
+        }
+
+        function renderLobbyPlayers() {
+            const listEl = document.getElementById('lobby-players-list');
+            listEl.innerHTML = '';
+            gameState.players.forEach((p, idx) => {
+                const item = document.createElement('div');
+                item.className = 'player-lobby-item';
+                item.innerHTML = `<span style="width:11px; height:11px; border-radius:50%; background:${config.playerColors[idx]}"></span> ${p.name} ${idx === 0 ? '(হোস্ট)' : ''}`;
+                listEl.appendChild(item);
+            });
+
+            const startBtn = document.getElementById('start-game-btn');
+            if (isHost) {
+                if (gameState.players.length >= 2) {
+                    startBtn.disabled = false;
+                    startBtn.textContent = `খেলা শুরু করুন (${gameState.players.length} জন)`;
+                } else {
+                    startBtn.disabled = true;
+                    startBtn.textContent = 'অন্যদের জন্য অপেক্ষা করুন... (কমপক্ষে ২ জন)';
+                }
+            }
+        }
+
+        document.getElementById('start-game-btn').addEventListener('click', async () => {
+            gameState.gameStarted = true;
+            broadcastTransaction("খেলা শুরু হয়েছে! সবাইকে শুভকামনা!");
+            await updateRemoteState(gameState);
+            launchBoard();
+        });
+
+        function launchBoard() {
+            lobbyModal.style.display = 'none';
+            appContainer.style.display = 'flex';
+            document.getElementById('network-status').textContent = `রুম: ${currentRoomId} (আপনি: ${gameState.players[myPlayerIndex].name})`;
+            createBoard();
+            updateUI();
+        }
+
+        async function updateRemoteState(state) {
+            if (!currentRoomId) return;
+            state.version = (state.version || 0) + 1;
+            await fetch(`api.php?action=update&room=${currentRoomId}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(state)
+            });
+        }
+
+        // =================== Polling ও সিঙ্কিং ===================
+        async function fetchRemoteState() {
+            if (!currentRoomId || isLocallyAnimating) return;
+            try {
+                const res = await fetch(`api.php?action=get&room=${currentRoomId}`);
+                const serverState = await res.json();
+                if (!serverState || !serverState.players) return;
+
+                if (serverState.version > (gameState?.version || 0)) {
+                    if (serverState.lastTransaction && serverState.lastTransaction.id !== localLastTxId) {
+                        localLastTxId = serverState.lastTransaction.id;
+                        showTransactionPopup(serverState.lastTransaction.text);
+                    }
+
+                    if (serverState.lastRoll && serverState.lastRoll.id !== localLastRollId) {
+                        localLastRollId = serverState.lastRoll.id;
+                        if (serverState.lastRoll.playerId !== myPlayerIndex) {
+                            animateOpponentMove(serverState.lastRoll, serverState);
+                            return;
+                        }
+                    }
+
+                    gameState = serverState;
+
+                    if (!gameState.gameStarted) {
+                        renderLobbyPlayers();
+                    } else if (lobbyModal.style.display !== 'none') {
+                        launchBoard();
+                    } else {
+                        updateUI();
+                        checkVictoryCondition();
+                    }
+                }
+            } catch (err) {
+                console.error('সিঙ্ক ত্রুটি:', err);
+            }
+        }
+
+        function animateOpponentMove(rollData, latestState) {
+            isLocallyAnimating = true;
+            const dice1El = document.getElementById('dice1');
+            const dice2El = document.getElementById('dice2');
+            dice1El.classList.add('rolling');
+            dice2El.classList.add('rolling');
+
+            setTimeout(() => {
+                dice1El.textContent = rollData.dice[0];
+                dice2El.textContent = rollData.dice[1];
+                dice1El.classList.remove('rolling');
+                dice2El.classList.remove('rolling');
+
+                let curPos = rollData.from;
+                let stepsLeft = rollData.steps;
+                const oppPlayer = gameState.players[rollData.playerId];
+
+                const timer = setInterval(() => {
+                    curPos = (curPos + 1) % config.board.length;
+                    oppPlayer.position = curPos;
+                    renderPlayerTokens();
+                    stepsLeft--;
+
+                    if (stepsLeft <= 0) {
+                        clearInterval(timer);
+                        gameState = latestState;
+                        isLocallyAnimating = false;
+                        updateUI();
+                        checkVictoryCondition();
+                    }
+                }, 200);
+            }, 450);
+        }
+
+        // =================== চাল ও গেমপ্লে ===================
+        rollDiceBtn.addEventListener('click', () => {
+            const player = gameState.players[myPlayerIndex];
+            if (gameState.currentPlayerIndex !== myPlayerIndex || player.bankrupt || gameState.isTurnInProgress) return;
+
+            if (player.inJail) {
+                handleJailTurn(player);
+                return;
+            }
+
+            rollDice();
+        });
+
+        function handleJailTurn(player) {
+            const modal = document.getElementById('jail-modal');
+            modal.innerHTML = `
+                <div class="modal">
+                    <h2>আপনি জেলে আছেন!</h2>
+                    <p style="margin: 8px 0; font-size:13px;">বের হওয়ার উপায় বেছে নিন:</p>
+                    <div style="margin: 12px 0;">
+                        <button id="pay-jail-btn" class="btn">জরিমানা দিন (৳${config.jailFine})</button>
+                        <button id="double-jail-btn" class="btn btn-warning">ডাবল ফেলার চেষ্টা</button>
+                    </div>
+                </div>
+            `;
+            modal.style.display = 'flex';
+
+            document.getElementById('pay-jail-btn').onclick = () => {
+                modal.style.display = 'none';
+                if (player.money < config.jailFine) {
+                    player.pendingDebt = { amount: config.jailFine, reason: "জেল জরিমানা", creditorId: null };
+                    openLiquidationModal(player);
+                    return;
+                }
+                player.money -= config.jailFine;
+                player.inJail = false;
+                player.jailTurns = 0;
+                broadcastTransaction(`${player.name} ৳${config.jailFine} জরিমানা দিয়ে মুক্ত হলেন!`);
+                rollDice();
+            };
+
+            document.getElementById('double-jail-btn').onclick = () => {
+                modal.style.display = 'none';
+                const d1 = Math.floor(Math.random() * 6) + 1;
+                const d2 = Math.floor(Math.random() * 6) + 1;
+                document.getElementById('dice1').textContent = d1;
+                document.getElementById('dice2').textContent = d2;
+
+                if (d1 === d2) {
+                    player.inJail = false;
+                    player.jailTurns = 0;
+                    broadcastTransaction(`${player.name} ডাবল (${d1}, ${d2}) ফেলে জেল থেকে মুক্তি পেলেন!`);
+                    movePlayerAnimated(d1 + d2, [d1, d2]);
+                } else {
+                    player.jailTurns++;
+                    if (player.jailTurns >= 3) {
+                        if (player.money < config.jailFine) {
+                            player.pendingDebt = { amount: config.jailFine, reason: "৩ বারেও ডাবল না পাওয়ায় জরিমানা", creditorId: null };
+                            openLiquidationModal(player);
+                            return;
+                        }
+                        player.money -= config.jailFine;
+                        player.inJail = false;
+                        player.jailTurns = 0;
+                        broadcastTransaction(`${player.name} ৩ বারে ডাবল না পেয়ে জরিমানা দিলেন।`);
+                        movePlayerAnimated(d1 + d2, [d1, d2]);
+                    } else {
+                        broadcastTransaction(`${player.name} ডাবল ফেলতে পারেননি (${d1}, ${d2})। জেলেই থাকলেন।`);
+                        endTurn();
+                    }
+                }
+            };
+        }
+
+        function rollDice() {
+            gameState.isTurnInProgress = true;
+            const dice1El = document.getElementById('dice1');
+            const dice2El = document.getElementById('dice2');
+            dice1El.classList.add('rolling');
+            dice2El.classList.add('rolling');
+
+            setTimeout(() => {
+                const d1 = Math.floor(Math.random() * 6) + 1;
+                const d2 = Math.floor(Math.random() * 6) + 1;
+                gameState.dice = [d1, d2];
+                dice1El.textContent = d1;
+                dice2El.textContent = d2;
+                dice1El.classList.remove('rolling');
+                dice2El.classList.remove('rolling');
+
+                movePlayerAnimated(d1 + d2, [d1, d2]);
+            }, 450);
+        }
+
+        function movePlayerAnimated(steps, dice) {
+            isLocallyAnimating = true;
+            const player = gameState.players[myPlayerIndex];
+            const oldPos = player.position;
+            const newPos = (oldPos + steps) % config.board.length;
+
+            gameState.lastRoll = {
+                id: Date.now(),
+                playerId: myPlayerIndex,
+                dice: dice,
+                from: oldPos,
+                steps: steps,
+                to: newPos
+            };
+            updateRemoteState(gameState);
+
+            let remainingSteps = steps;
+            let passedGo = false;
+
+            const timer = setInterval(() => {
+                player.position = (player.position + 1) % config.board.length;
+                if (player.position === 0) passedGo = true;
+
+                renderPlayerTokens();
+                remainingSteps--;
+
+                if (remainingSteps <= 0) {
+                    clearInterval(timer);
+                    isLocallyAnimating = false;
+
+                    if (passedGo) {
+                        player.money += config.goSalary;
+                        broadcastTransaction(`${player.name} বোর্ড ঘুরে আসায় ৳${config.goSalary} বেতন পেলেন!`);
+                    }
+
+                    setTimeout(handleCellLanding, 250);
+                }
+            }, 200);
+        }
+
+        function handleCellLanding() {
+            const player = gameState.players[myPlayerIndex];
+            const cell = config.board[player.position];
+
+            if (cell.type === 'property') {
+                const owner = getPropertyOwner(cell.name);
+                if (!owner) {
+                    showPropertyModal(player.position, 'buy_property');
+                    return;
+                } else if (owner.id === player.id) {
+                    const propState = player.properties.find(p => p.index === player.position);
+                    if (propState.houses < 4) {
+                        showPropertyModal(player.position, 'build_house');
+                        return;
+                    }
+                } else if (!owner.bankrupt) {
+                    const propState = owner.properties.find(p => p.index === player.position);
+                    const rent = calculateRent(cell, propState);
+                    handlePayment(player, rent, `${owner.name}-এর '${cell.name}'-এর ভাড়া`, owner);
+                    broadcastTransaction(`${player.name} ➔ ${owner.name}-কে ৳${rent} ভাড়া পরিশোধ করলেন!`);
+                }
+            } else if (cell.type === 'tax') {
+                handlePayment(player, cell.amount, `ট্যাক্স (${cell.name}) বাবদ`, null);
+                broadcastTransaction(`${player.name} কর বাবদ ৳${cell.amount} পরিশোধ করলেন।`);
+            } else if (cell.type === 'go_to_jail') {
+                player.position = config.jailPosition;
+                player.inJail = true;
+                player.jailTurns = 0;
+                broadcastTransaction(`👮 ${player.name} জেলে প্রেরিত হলেন!`);
+                renderPlayerTokens();
+            } else if (cell.type === 'chance' || cell.type === 'community_chest') {
+                drawCard(cell.type);
+                return;
+            }
+
+            checkDebtOrEndTurn();
+        }
+
+        function drawCard(type) {
+            const cards = type === 'chance' ? config.chanceCards : config.communityChestCards;
+            const card = cards[Math.floor(Math.random() * cards.length)];
+            const player = gameState.players[myPlayerIndex];
+
+            const modal = document.getElementById('card-modal');
+            modal.innerHTML = `
+                <div class="modal">
+                    <h2>${type === 'chance' ? 'চান্স কার্ড 🎲' : 'কমিউনিটি চেষ্ট 🎁'}</h2>
+                    <p style="font-size: 15px; margin: 12px 0;">${card.text}</p>
+                    <button id="card-ok-btn" class="btn">ঠিক আছে</button>
+                </div>
+            `;
+            modal.style.display = 'flex';
+
+            document.getElementById('card-ok-btn').onclick = () => {
+                modal.style.display = 'none';
+
+                if (card.action === 'add_money') {
+                    player.money += card.amount;
+                    broadcastTransaction(`${player.name} কার্ড থেকে ৳${card.amount} পেলেন!`);
+                } else if (card.action === 'remove_money') {
+                    handlePayment(player, card.amount, card.text, null);
+                    broadcastTransaction(`${player.name} কার্ড বাবদ ৳${card.amount} দিলেন।`);
+                } else if (card.action === 'go_to') {
+                    player.position = card.position;
+                    player.money += config.goSalary;
+                    broadcastTransaction(`${player.name} 'শুরু'-তে গিয়ে ৳${config.goSalary} বেতন পেলেন!`);
+                    renderPlayerTokens();
+                } else if (card.action === 'go_to_jail') {
+                    player.position = config.jailPosition;
+                    player.inJail = true;
+                    player.jailTurns = 0;
+                    broadcastTransaction(`${player.name} কার্ড পেয়ে জেলে গেলেন!`);
+                    renderPlayerTokens();
+                }
+                checkDebtOrEndTurn();
+            };
+        }
+
+        // নিরাপদ পেমেন্ট হ্যান্ডলার
+        function handlePayment(debtor, amount, reason, creditor) {
+            if (debtor.money >= amount) {
+                debtor.money -= amount;
+                if (creditor) creditor.money += amount;
+            } else {
+                debtor.pendingDebt = {
+                    amount: amount,
+                    reason: reason,
+                    creditorId: creditor ? creditor.id : null
+                };
+            }
+        }
+
+        function checkDebtOrEndTurn() {
+            const player = gameState.players[myPlayerIndex];
+            if (player.pendingDebt) {
+                openLiquidationModal(player);
+            } else {
+                endTurn();
+            }
+        }
+
+        function openLiquidationModal(player) {
+            const modal = document.getElementById('liquidation-modal');
+            const reasonText = document.getElementById('debt-reason-text');
+            const balanceText = document.getElementById('debt-balance-text');
+            const assetsList = document.getElementById('debt-assets-list');
+            const bankruptBtn = document.getElementById('declare-bankruptcy-btn');
+
+            modal.style.display = 'flex';
+            reasonText.textContent = `দেনার কারণ: ${player.pendingDebt.reason}`;
+
+            function renderLiquidation() {
+                const needed = player.pendingDebt.amount - player.money;
+                balanceText.textContent = `৳${needed}`;
+                assetsList.innerHTML = '';
+
+                if (player.properties.length === 0) {
+                    assetsList.innerHTML = '<p style="color:red; text-align:center; font-size:12px;">আপনার বিক্রি করার মতো কোনো সম্পত্তি নেই!</p>';
+                    bankruptBtn.style.display = 'block';
+                    return;
+                } else {
+                    bankruptBtn.style.display = 'none';
+                }
+
+                player.properties.forEach(prop => {
+                    const cell = config.board[prop.index];
+                    const refund = cell.price + (prop.houses * cell.houseCost);
+                    const item = document.createElement('div');
+                    item.style.cssText = 'display:flex; justify-content:space-between; align-items:center; margin-bottom:5px; background:#fff; padding:4px 6px; border-radius:4px; font-size:12px;';
+                    item.innerHTML = `
+                        <span><b>${cell.name}</b> ${prop.houses > 0 ? `(🏠${prop.houses})` : ''}</span>
+                        <button class="btn btn-warning" style="padding:3px 6px; font-size:10px;">বিক্রি (৳${refund})</button>
+                    `;
+                    item.querySelector('button').onclick = () => {
+                        player.money += refund;
+                        player.properties = player.properties.filter(p => p.index !== prop.index);
+                        broadcastTransaction(`${player.name} দেনা শোধ করতে '${cell.name}' জমি ৳${refund}-এ ব্যাংকে বিক্রি করলেন।`);
+
+                        if (player.money >= player.pendingDebt.amount) {
+                            player.money -= player.pendingDebt.amount;
+                            if (player.pendingDebt.creditorId !== null) {
+                                const cred = gameState.players[player.pendingDebt.creditorId];
+                                cred.money += player.pendingDebt.amount;
+                            }
+                            player.pendingDebt = null;
+                            modal.style.display = 'none';
+                            endTurn();
+                        } else {
+                            renderLiquidation();
+                        }
+                    };
+                    assetsList.appendChild(item);
+                });
+            }
+
+            bankruptBtn.onclick = () => {
+                modal.style.display = 'none';
+                declareBankruptcy(player);
+            };
+
+            renderLiquidation();
+        }
+
+        function declareBankruptcy(player) {
+            player.bankrupt = true;
+            if (player.pendingDebt && player.pendingDebt.creditorId !== null) {
+                const cred = gameState.players[player.pendingDebt.creditorId];
+                cred.money += Math.max(0, player.money);
+            }
+            player.money = 0;
+            player.properties = [];
+            player.pendingDebt = null;
+            broadcastTransaction(`⚠️ ${player.name} দেউলিয়া ঘোষিত হলেন!`);
+
+            endTurn();
+            checkVictoryCondition();
+        }
+
+        function checkVictoryCondition() {
+            if (!gameState || !gameState.gameStarted) return;
+            const activePlayers = gameState.players.filter(p => !p.bankrupt);
+            if (activePlayers.length === 1) {
+                const winner = activePlayers[0];
+                document.getElementById('winner-text').textContent = `অভিনন্দন ${winner.name}! আপনি মনোপলি বিজয়ী হয়েছেন! 🎉`;
+                winnerModal.style.display = 'flex';
+                clearSession();
+            }
+        }
+
+        document.getElementById('leave-game-btn').addEventListener('click', () => {
+            clearSession();
+            location.reload();
+        });
+
+        function endTurn() {
+            gameState.isTurnInProgress = false;
+
+            let next = gameState.currentPlayerIndex;
+            let count = 0;
+            do {
+                next = (next + 1) % gameState.players.length;
+                count++;
+            } while (gameState.players[next].bankrupt && count < gameState.players.length);
+
+            gameState.currentPlayerIndex = next;
+            updateUI();
+            updateRemoteState(gameState);
+        }
+
+        function getPropertyOwner(propertyName) {
+            const cellIndex = config.board.findIndex(c => c.name === propertyName);
+            if (cellIndex === -1) return null;
+            return gameState.players.find(p => !p.bankrupt && p.properties.some(prop => prop.index === cellIndex));
+        }
+
+        function showPropertyModal(cellIndex, mode) {
+            const modal = document.getElementById('property-modal');
+            const cell = config.board[cellIndex];
+            const player = gameState.players[myPlayerIndex];
+            const propState = player.properties.find(p => p.index === cellIndex);
+
+            let buttons = '';
+            let content = '';
+
+            if (mode === 'buy_property') {
+                const rent20 = Math.round(cell.price * 0.20);
+                content = `
+                    <h2>${cell.name}</h2>
+                    <p>জমির দাম: <b>৳${cell.price}</b></p>
+                    <p>ভাড়া (২০%): <b>৳${rent20}</b></p>
+                    <p>বাড়ি প্রতি খরচ: ৳${cell.houseCost}</p>
+                `;
+                if (player.money >= cell.price) {
+                    buttons += `<button id="buy-prop-btn" class="btn">জমি কিনুন (৳${cell.price})</button>`;
+                }
+                buttons += `<button id="skip-btn" class="btn btn-secondary">ছেড়ে দিন</button>`;
+            } else if (mode === 'build_house') {
+                const curHouses = propState.houses || 0;
+                const nextRent = Math.round((cell.price + ((curHouses + 1) * cell.houseCost)) * 0.20);
+                content = `
+                    <h2>${cell.name} (আপনার জমি)</h2>
+                    <p>বর্তমান বাড়ি: <b>${curHouses}টি</b></p>
+                    <p>নতুন বাড়ি বানালে ভাড়া হবে: <b>৳${nextRent}</b></p>
+                `;
+                if (player.money >= cell.houseCost) {
+                    buttons += `<button id="build-house-btn" class="btn">বাড়ি কিনুন (৳${cell.houseCost})</button>`;
+                }
+                buttons += `<button id="skip-btn" class="btn btn-secondary">এখন বাদ দিন</button>`;
+            } else if (mode === 'sell_to_bank') {
+                const curHouses = propState.houses || 0;
+                const refund = cell.price + (curHouses * cell.houseCost);
+                content = `
+                    <h2>${cell.name}</h2>
+                    <p>ব্যাংক থেকে পাবেন: <b style="color:green;">৳${refund}</b></p>
+                `;
+                buttons += `<button id="sell-bank-btn" class="btn btn-warning">ব্যাংকে বিক্রি করুন</button>`;
+                buttons += `<button id="skip-btn" class="btn btn-secondary">বন্ধ করুন</button>`;
+            }
+
+            modal.innerHTML = `
+                <div class="modal">
+                    ${content}
+                    <div style="margin-top: 12px;">${buttons}</div>
+                </div>
+            `;
+            modal.style.display = 'flex';
+
+            document.getElementById('buy-prop-btn')?.addEventListener('click', () => {
+                player.money -= cell.price;
+                player.properties.push({ index: cellIndex, houses: 0 });
+                broadcastTransaction(`${player.name} ৳${cell.price} দিয়ে '${cell.name}' কিনলেন!`);
+                modal.style.display = 'none';
+                endTurn();
+            });
+
+            document.getElementById('build-house-btn')?.addEventListener('click', () => {
+                player.money -= cell.houseCost;
+                propState.houses++;
+                broadcastTransaction(`${player.name} '${cell.name}'-এ ১টি বাড়ি বানালেন!`);
+                modal.style.display = 'none';
+                endTurn();
+            });
+
+            document.getElementById('sell-bank-btn')?.addEventListener('click', () => {
+                const curHouses = propState.houses || 0;
+                const refund = cell.price + (curHouses * cell.houseCost);
+                player.money += refund;
+                player.properties = player.properties.filter(p => p.index !== cellIndex);
+                broadcastTransaction(`${player.name} '${cell.name}' জমিটি ৳${refund}-এ ব্যাংকে বিক্রি করলেন।`);
+                modal.style.display = 'none';
+                updateUI();
+                updateRemoteState(gameState);
+            });
+
+            document.getElementById('skip-btn')?.addEventListener('click', () => {
+                modal.style.display = 'none';
+                if (mode !== 'sell_to_bank') endTurn();
+            });
+        }
+
+        // =================== UI রেন্ডারিং ===================
+        function updateUI() {
+            renderPlayersList();
+            renderPlayerTokens();
+            renderAllDeeds();
+            updatePropertyOwnership();
+
+            const curr = gameState.players[gameState.currentPlayerIndex];
+            document.getElementById('current-player-name-center').textContent = curr ? `${curr.name} ${curr.bankrupt ? '(দেউলিয়া)' : ''}` : '';
+
+            const me = gameState.players[myPlayerIndex];
+            if (me) {
+                document.getElementById('player-cash').textContent = `টাকা: ৳${me.money}`;
+                document.getElementById('player-properties').textContent = `সম্পত্তি: ${me.properties.length}`;
+            }
+
+            const isMyTurn = (gameState.currentPlayerIndex === myPlayerIndex && !me.bankrupt && !gameState.isTurnInProgress);
+            rollDiceBtn.disabled = !isMyTurn;
+        }
+
+        function renderPlayersList() {
+            const p1Box = document.getElementById('player1-info-container');
+            const p2Box = document.getElementById('player2-info-container');
+            p1Box.innerHTML = '';
+            p2Box.innerHTML = '';
+
+            gameState.players.forEach((p, idx) => {
+                const div = document.createElement('div');
+                div.className = 'player-info' + (idx === gameState.currentPlayerIndex ? ' active' : '') + (p.bankrupt ? ' bankrupt' : '');
+                div.innerHTML = `<h3><span class="player-indicator" style="background-color:${config.playerColors[idx]}"></span> ${p.name} ${p.bankrupt ? '(দেউলিয়া)' : ''}</h3><p>টাকা: ৳${p.money}</p>`;
+                if (idx === myPlayerIndex) {
+                    p1Box.appendChild(div);
+                } else {
+                    p2Box.appendChild(div);
+                }
+            });
+        }
+
+        function renderPlayerTokens() {
+            document.querySelectorAll('.player-token').forEach(t => t.remove());
+            gameState.players.forEach((p, i) => {
+                if (p.bankrupt) return;
+                const cell = document.getElementById(`cell-${p.position}`);
+                if (!cell) return;
+                const token = document.createElement('div');
+                token.className = 'player-token';
+                token.style.backgroundColor = config.playerColors[i];
+
+                const xOffset = (i % 2) * 10;
+                const yOffset = Math.floor(i / 2) * 10;
+                token.style.left = `${cell.offsetLeft + 2 + xOffset}px`;
+                token.style.top = `${cell.offsetTop + 2 + yOffset}px`;
+                boardEl.appendChild(token);
+            });
+        }
+
+        function updatePropertyOwnership() {
+            config.board.forEach((cell, i) => {
+                if (cell.type === 'property') {
+                    const owner = getPropertyOwner(cell.name);
+                    const cellEl = document.getElementById(`cell-${i}`);
+                    if (!cellEl) return;
+
+                    const ownerInd = cellEl.querySelector('.ownership-indicator');
+                    const houseInd = cellEl.querySelector('.house-indicator');
+
+                    if (owner) {
+                        const propState = owner.properties.find(p => p.index === i);
+                        ownerInd.style.backgroundColor = config.playerColors[owner.id];
+                        houseInd.innerHTML = Array(propState ? propState.houses : 0).fill('<div class="house"></div>').join('');
+                    } else {
+                        ownerInd.style.backgroundColor = 'transparent';
+                        houseInd.innerHTML = '';
+                    }
+                }
+            });
+        }
+
+        function renderAllDeeds() {
+            const p1Deeds = document.getElementById('player1-deeds-list');
+            const p2Deeds = document.getElementById('player2-deeds-list');
+            p1Deeds.innerHTML = '';
+            p2Deeds.innerHTML = '';
+
+            gameState.players.forEach((p, idx) => {
+                if (p.bankrupt) return;
+                const target = idx === myPlayerIndex ? p1Deeds : p2Deeds;
+                p.properties.forEach(prop => {
+                    const cell = config.board[prop.index];
+                    const rent = calculateRent(cell, prop);
+                    const card = document.createElement('div');
+                    card.className = 'deed-card';
+                    card.innerHTML = `
+                        <span style="width:4px; height:15px; border-radius:2px; background:${config.playerColors[idx]}"></span>
+                        <div class="deed-info">
+                            <b>${cell.name} ${prop.houses > 0 ? `(🏠${prop.houses})` : ''}</b>
+                            <span>ভাড়া: ৳${rent}</span>
+                        </div>
+                    `;
+
+                    // শুধুমাত্র নিজের চালে জমি ব্যাংকে বিক্রি করা যাবে (অন্যের চালে স্টেট ওভাররাইট ঠেকানোর জন্য)
+                    if (idx === myPlayerIndex) {
+                        card.title = "বিক্রি করতে ক্লিক করুন";
+                        card.addEventListener('click', () => {
+                            if (gameState.currentPlayerIndex !== myPlayerIndex) {
+                                alert("শুধুমাত্র আপনার চাল থাকা অবস্থায় জমি বিক্রি করতে পারবেন!");
+                                return;
+                            }
+                            showPropertyModal(prop.index, 'sell_to_bank');
+                        });
+                    }
+                    target.appendChild(card);
+                });
+            });
+        }
+
+        function createBoard() {
+            boardEl.innerHTML = '';
+            const center = `<div id="center-console">
+                <h1>বাংলা মনোপলি</h1>
+                <div id="dice-container"><div id="dice1" class="dice">?</div><div id="dice2" class="dice">?</div></div>
+                <h4 style="color: white; margin-top: 5px; font-size: 12px;">চাল: <span id="current-player-name-center" style="color:#ffeb3b;"></span></h4>
+                <div id="game-status" style="color: white; margin-top: 3px; font-size: 10.5px;"><span id="player-cash"></span> | <span id="player-properties"></span></div>
+                <div style="font-size: 10px; color: #a5d6a7; margin-top: 3px;" id="network-status"></div>
+            </div>`;
+
+            config.board.forEach((cellData, i) => {
+                const cell = document.createElement('div');
+                cell.id = `cell-${i}`;
+                cell.className = 'cell';
+                if (i > 0 && i < 10) cell.style.gridArea = `${11} / ${11 - i} / 12 / ${12 - i}`;
+                else if (i > 10 && i < 20) cell.style.gridArea = `${11 - (i - 10)} / 1 / ${12 - (i - 10)} / 2`;
+                else if (i > 20 && i < 30) cell.style.gridArea = `1 / ${1 + (i - 20)} / 2 / ${2 + (i - 20)}`;
+                else if (i > 30 && i < 40) cell.style.gridArea = `${1 + (i - 30)} / 11 / ${2 + (i - 30)} / 12`;
+
+                if (cellData.type === 'property') {
+                    cell.innerHTML = `
+                        <div class="header"></div>
+                        <div class="name">${cellData.name}</div>
+                        <div class="price">৳${cellData.price}</div>
+                        <div class="ownership-indicator"></div>
+                        <div class="house-indicator"></div>
+                    `;
+                } else if (['go', 'jail', 'free_parking', 'go_to_jail'].includes(cellData.type)) {
+                    cell.classList.add('corner');
+                    let icon = { 'go':'➔', 'jail':'⛓️', 'free_parking':'🅿️', 'go_to_jail':'👮' }[cellData.type];
+                    cell.innerHTML = `<div class="name">${cellData.name}</div><div class="special-icon">${icon}</div>`;
+                } else {
+                    cell.innerHTML = `<div class="name">${cellData.name}</div>`;
+                }
+                boardEl.appendChild(cell);
+            });
+            boardEl.insertAdjacentHTML('beforeend', center);
+        }
+    });
+    </script>
+</body>
+</html>
